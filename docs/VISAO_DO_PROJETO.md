@@ -126,6 +126,129 @@ Ele responde com data, quilometragem e observações — porque ele lembra de tu
 4. **Modular** — cada serviço independente, um problema não derruba o resto
 5. **Open source** — organizado para poder compartilhar ou evoluir para produto
 
+## Arquitetura detalhada — ESP32 e sensores
+
+```
+              ESP32 (Power)
+                    │
+              Wi-Fi / MQTT
+                    │
+        ┌───────────┴───────────┐
+        │                       │
+    ESP32 (Motor)          ESP32 (Painel)
+        │                       │
+        └───────────┬───────────┘
+                    │
+             CorsaOS Server
+             (Ubuntu Linux)
+                    │
+ ┌──────────────────────────────────────────┐
+ │ MQTT │ Banco │ IA │ Dashboard │ API │ Logs│
+ └──────────────────────────────────────────┘
+                    │
+      Tela / Celular / Tablet
+```
+
+O PC é o **cérebro** — não conversa diretamente com sensores. Quem faz isso são os ESP32. O PC **pensa**.
+
+## Fluxo MQTT
+
+ESP32 publica dados em tópicos:
+
+```
+corsa/power/battery     → 12.54
+corsa/motor/rpm         → 1800
+corsa/motor/temp        → 92
+corsa/interior/humidity → 65
+```
+
+O backend Java recebe → salva no banco → IA processa → dashboard atualiza. Tudo ao mesmo tempo.
+
+## Banco de dados — o que o carro vai lembrar
+
+O PostgreSQL vai guardar:
+
+- Histórico de bateria
+- Consumo por viagem
+- Temperatura do motor ao longo do tempo
+- Falhas e códigos OBD2
+- Manutenções registradas por voz
+- Hábitos de direção
+
+**O carro vai ter memória.**
+
+## IA — dois cérebros
+
+```
+                INTERNET
+                    │
+         ┌──────────┴──────────┐
+         │                     │
+   IA Remota (opcional)   ChatGPT/OpenAI
+
+─────────────────────────────────────────
+         │
+      CorsaOS
+ (PC dentro do carro)
+         │
+  IA Local (sempre disponível)
+         │
+─────────────────────────────────────────
+         │
+      MQTT Broker
+         │
+ ESP32 + Sensores
+```
+
+**Comportamento:**
+
+- "Corsa, quanto de combustível tenho?" → IA local responde em menos de 1 segundo
+- "Por que o motor Ecotec carboniza válvulas?" → consulta IA remota se tiver internet
+- "Quanto gastei com manutenção esse ano?" → IA consulta o banco do próprio carro
+
+## Voz — fluxo completo
+
+```
+Microfone → Whisper → Texto → Java → IA → Resposta → Piper TTS → Alto-falante
+```
+
+Exemplo completo:
+
+> Você: "Corsa, como está a bateria?"
+> Corsa: "Bateria em 12.6 volts, nível normal."
+
+Tudo offline, sem internet, em português.
+
+## IA com memória do carro
+
+Exemplo de interação meses depois de uso:
+
+> Você: "Quando troquei o óleo?"
+> Corsa: "Troca registrada em 15 de março de 2026, aos 120.000 km."
+
+> Você: "Estou gastando mais combustível?"
+> Corsa: "Sim. Nas últimas três semanas seu consumo caiu de 12.8 km/L para 10.6 km/L.
+>          A principal suspeita é pressão insuficiente nos pneus ou filtro de ar sujo."
+
+A IA aprende padrões. Exemplo:
+
+> "Quando chove muito, o farol direito costuma falhar."
+
+Ela registra. Meses depois, se perguntar se o problema já aconteceu, ela responde usando o histórico.
+
+## Hardware recomendado para upgrade futuro
+
+| Fase | Hardware | RAM |
+|------|---------|-----|
+| Fase 1 | PC velho | 4-8GB |
+| Fase 2 | Mini PC Intel N100 | 16GB |
+| Fase 3 | Mini PC + GPU NVIDIA | 32GB |
+
+Modelo de IA por fase:
+- Fase 1: Phi-3 mini (3.8B) — roda em CPU fraca
+- Fase 2: Qwen2 7B — Mini PC
+- Fase 3: modelo 13B+ com GPU
+
 ## Repositório
 
 https://github.com/a131mael/CorsaOS
