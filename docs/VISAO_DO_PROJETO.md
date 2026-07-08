@@ -91,9 +91,10 @@ Ele responde com data, quilometragem e observações — porque ele lembra de tu
 ## Fases de desenvolvimento
 
 ### Fase 1 — Infraestrutura
-- [ ] Ubuntu Server 22.04 instalado no PC
-- [ ] Docker + Mosquitto + PostgreSQL + Ollama
-- [ ] Leitura OBD2 salvando dados no banco
+- [x] Ubuntu Server **20.04** instalado no PC (22.04 e 26.04 não bootam nesse hardware — GRUB trava, ver histórico abaixo)
+- [x] Docker + Mosquitto + PostgreSQL + Ollama (rodando desde 2026-07-07)
+- [x] Ollama + Phi-3 mini testado, respondendo em português
+- [x] Scripts de leitura OBD2 → PostgreSQL prontos (aguardando dongle Bluetooth USB pra teste real)
 - [ ] API REST básica
 - [ ] Dashboard React mostrando dados em tempo real
 - [ ] Voz: Whisper (entrada) + Piper TTS (saída)
@@ -252,3 +253,16 @@ Modelo de IA por fase:
 ## Repositório
 
 https://github.com/a131mael/CorsaOS
+
+## Histórico de progresso
+
+### 2026-07-07 — Infraestrutura Fase 1 no ar
+
+- **Instalação do Ubuntu**: tentativas com Ubuntu Server 26.04 (pendrive via Rufus) travaram sempre no GRUB (primeiro no prompt `grub>`, depois nem isso — travava exibindo só "GRUB" na tela, sem completar o carregamento do bootloader). Testadas várias combinações de partição/sistema de destino no Rufus, sem sucesso. Causa: hardware velho demais pro GRUB/kernel dessa versão. **Solução**: instalado Ubuntu Server 20.04, funcionou de primeira. Esse é o OS definitivo do projeto agora.
+- **Rede**: PC apelidado de `corsa`, IP 192.168.15.5 (DHCP) na rede da casa (192.168.15.x). SSH configurado com chave (sem senha).
+- **Docker**: instalado (repo oficial, com ajuste manual porque o pacote `docker-model-plugin` do script de instalação não existe pro Ubuntu 20.04). Subiu 3 containers via `docker-compose.yml`: Mosquitto (MQTT), PostgreSQL (banco `corsaos`) e Ollama.
+- **IA local**: modelo Phi-3 mini baixado no Ollama e testado — respondeu corretamente em português a uma pergunta sobre carburador.
+- **Alimentação elétrica pro carro**: decidido usar inversor 12V→220V (comum, ~R$115-140) + a fonte ATX original da torre, em vez de fontes automotivas DC-DC dedicadas (M2-ATX-HV custava ~R$1.300, caro demais pro projeto). Inversor e adaptador OBD2 Bluetooth (ELM327) já comprados.
+- **OBD2**: scripts de pareamento Bluetooth e leitura de telemetria (RPM, velocidade, temperatura do motor, tensão da bateria, combustível) escritos e prontos em `/home/corsa/corsaos/` (`parear_obd2.sh`, `obd_reader.py`, `iniciar_obd.sh`). Faltando só o dongle USB Bluetooth pra torre (ela não tem Bluetooth/WiFi de fábrica — só 2 placas Ethernet) pra testar com o carro de verdade.
+- **Shutdown seguro**: serviço systemd (`corsaos-shutdown.service`) já rodando na torre, escutando MQTT no tópico `corsa/power/ignition` — quando receber "off", agenda um `shutdown -h now` em 10s (cancelável se vier "on" de novo). Prepara o terreno pro relé de ignição da Fase 2 avisar o sistema antes de cortar a energia.
+- **Tentativa de rodar Claude Code na torre — bloqueada por hardware**: a ideia era usar o Claude Code (via assinatura pessoal, sem custo de API por token) como "cérebro remoto" do carro quando tiver internet. Node.js 20 instala e funciona normalmente, mas o binário do Claude Code trava com `Illegal instruction` — o processador (Celeron E3300, 2009) só suporta instruções até SSSE3, sem SSE4.2/POPCNT/AVX que o binário exige. Sem solução via software; fica pra quando o Mini PC N100 (upgrade de Fase 2) entrar em cena.
