@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-function GaugeCircle({ value, max, label, unit, color }) {
+function GaugeCircle({ value, max, label, unit, color, size = 160 }) {
   const pct = Math.min(value / max, 1);
-  const r = 60;
-  const cx = 80, cy = 80;
+  const r = size * 0.375;
+  const cx = size / 2, cy = size / 2;
   const startAngle = -135 * (Math.PI / 180);
   const arcLength = 270 * (Math.PI / 180);
   const filledArc = pct * arcLength;
@@ -13,19 +13,22 @@ function GaugeCircle({ value, max, label, unit, color }) {
   const x2 = cx + r * Math.cos(startAngle + filledArc);
   const y2 = cy + r * Math.sin(startAngle + filledArc);
   const largeArc = filledArc > Math.PI ? 1 : 0;
+  const strokeW = size * 0.075;
+  const valueFs = size * 0.135;
+  const unitFs = size * 0.07;
 
   return (
     <div className="gauge">
-      <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1a2e" strokeWidth="12" />
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1a2e" strokeWidth={strokeW} />
         {pct > 0 && (
           <path
             d={`M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`}
-            fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+            fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round"
           />
         )}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="white" fontSize="22" fontWeight="bold">{value}</text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#888" fontSize="11">{unit}</text>
+        <text x={cx} y={cy - size * 0.05} textAnchor="middle" fill="white" fontSize={valueFs} fontWeight="bold">{value}</text>
+        <text x={cx} y={cy + size * 0.075} textAnchor="middle" fill="#888" fontSize={unitFs}>{unit}</text>
       </svg>
       <div className="gauge-label">{label}</div>
     </div>
@@ -49,11 +52,42 @@ function BatteryBar({ voltage }) {
   );
 }
 
+const CAMERA_STREAM_URL = 'https://corsacam.fidenatto.com.br/stream';
+
+function CameraMain() {
+  const [key, setKey] = useState(0);
+  const [errored, setErrored] = useState(false);
+
+  const reload = () => { setErrored(false); setKey(k => k + 1); };
+
+  return (
+    <div className="camera-main">
+      {errored ? (
+        <div className="camera-error-main" onClick={reload}>
+          <div>📷</div>
+          <div>Sem sinal da câmera</div>
+          <div className="camera-retry">toque p/ tentar de novo</div>
+        </div>
+      ) : (
+        <img
+          key={key}
+          className="camera-feed-main"
+          src={`${CAMERA_STREAM_URL}?_=${key}`}
+          alt="Câmera ao vivo"
+          onError={() => setErrored(true)}
+        />
+      )}
+      <button className="camera-reload-btn" onClick={reload}>↻</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [data, setData] = useState({ rpm: 850, speed: 0, temp: 88, battery: 12.6, fuel: 65, headlights: false });
   const [listening, setListening] = useState(false);
   const [aiMsg, setAiMsg] = useState('Sistema inicializado. Boa viagem, Abimael.');
   const [time, setTime] = useState(new Date());
+  const [cameraMode, setCameraMode] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -85,17 +119,34 @@ export default function App() {
       <header className="header">
         <div className="logo">⚡ CORSA<span>OS</span></div>
         <div className="clock">{hh}:{mm}</div>
+        <button className="view-toggle" onClick={() => setCameraMode(m => !m)}>
+          {cameraMode ? '⛯ Modo clássico' : '📷 Modo câmera'}
+        </button>
         <div className="engine-on">● MOTOR ON</div>
       </header>
 
-      <div className="gauges-row">
-        <GaugeCircle value={data.rpm} max={6000} label="RPM" unit="rpm" color="#00aaff" />
-        <div className="speed-center">
-          <div className="speed-value">{data.speed}</div>
-          <div className="speed-unit">km/h</div>
+      {cameraMode ? (
+        <div className="main-row">
+          <div className="gauges-col">
+            <GaugeCircle value={data.rpm} max={6000} label="RPM" unit="rpm" color="#00aaff" size={100} />
+            <div className="speed-col-value">
+              <div className="speed-col-num">{data.speed}</div>
+              <div className="speed-col-unit">km/h</div>
+            </div>
+            <GaugeCircle value={Math.round(data.temp)} max={120} label="TEMP" unit="°C" color={tempColor} size={100} />
+          </div>
+          <CameraMain />
         </div>
-        <GaugeCircle value={Math.round(data.temp)} max={120} label="TEMPERATURA" unit="°C" color={tempColor} />
-      </div>
+      ) : (
+        <div className="gauges-row">
+          <GaugeCircle value={data.rpm} max={6000} label="RPM" unit="rpm" color="#00aaff" />
+          <div className="speed-center">
+            <div className="speed-value">{data.speed}</div>
+            <div className="speed-unit">km/h</div>
+          </div>
+          <GaugeCircle value={Math.round(data.temp)} max={120} label="TEMPERATURA" unit="°C" color={tempColor} />
+        </div>
+      )}
 
       <div className="mid-row">
         <BatteryBar voltage={data.battery} />
