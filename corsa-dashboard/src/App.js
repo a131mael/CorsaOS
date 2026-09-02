@@ -53,6 +53,65 @@ function BatteryBar({ voltage }) {
 }
 
 const CAMERA_STREAM_URL = 'https://corsacam.fidenatto.com.br/stream';
+const AUDIO_STREAM_URL = 'https://audio.fidenatto.com.br';
+const AUDIO_CONTROL_URL = 'https://audioctl.fidenatto.com.br';
+const VOICE_API_URL = 'https://voz.fidenatto.com.br';
+
+function RestartButton() {
+  const [busy, setBusy] = useState(false);
+
+  const reiniciar = async () => {
+    if (busy) return;
+    if (!window.confirm('Reiniciar o computador do painel?')) return;
+    setBusy(true);
+    try {
+      await fetch(`${VOICE_API_URL}/system/reboot`, { method: 'POST' });
+    } catch (e) {
+      // torre já pode ter caído no meio da resposta, ignora erro de rede aqui
+    }
+  };
+
+  return (
+    <button className="restart-btn" onClick={reiniciar} disabled={busy} title="Reiniciar">
+      ⏻
+    </button>
+  );
+}
+
+function MicControl() {
+  const [active, setActive] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const toggle = async () => {
+    setLoading(true);
+    try {
+      const endpoint = active ? '/audio/stop' : '/audio/start';
+      await fetch(`${AUDIO_CONTROL_URL}${endpoint}`, { method: 'POST' });
+      setActive(a => !a);
+    } catch (e) {
+      console.error('Falha ao controlar o mic', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button className={`ctrl-btn ${active ? 'active' : ''}`} onClick={toggle} disabled={loading}>
+        🎤 {loading ? '...' : active ? 'Mic ON' : 'Mic OFF'}
+      </button>
+      {active && (
+        <audio
+          key={AUDIO_STREAM_URL}
+          src={AUDIO_STREAM_URL}
+          autoPlay
+          controls
+          style={{ width: '100%', marginTop: 8 }}
+        />
+      )}
+    </>
+  );
+}
 
 function CameraMain() {
   const [key, setKey] = useState(0);
@@ -85,6 +144,7 @@ function CameraMain() {
 export default function App() {
   const [data, setData] = useState({ rpm: 850, speed: 0, temp: 88, battery: 12.6, fuel: 65, headlights: false });
   const [listening, setListening] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [aiMsg, setAiMsg] = useState('Sistema inicializado. Boa viagem, Abimael.');
   const [time, setTime] = useState(new Date());
   const [cameraMode, setCameraMode] = useState(true);
@@ -102,12 +162,31 @@ export default function App() {
     setAiMsg(data.headlights ? 'Farol desligado.' : 'Farol ligado.');
   };
 
-  const handleVoice = () => {
-    setListening(true);
-    setTimeout(() => {
+  const handleVoice = async () => {
+    if (processing) return;
+    if (!listening) {
+      setListening(true);
+      setAiMsg('Ouvindo...');
+      try {
+        await fetch(`${VOICE_API_URL}/mic/start`, { method: 'POST' });
+      } catch (e) {
+        setListening(false);
+        setAiMsg('Não consegui abrir o microfone.');
+      }
+    } else {
       setListening(false);
-      setAiMsg('Bateria em 12.6V, nível normal. Temperatura do motor estável em 88°C.');
-    }, 2000);
+      setProcessing(true);
+      setAiMsg('Processando...');
+      try {
+        const r = await fetch(`${VOICE_API_URL}/mic/stop`, { method: 'POST' });
+        const d = await r.json();
+        setAiMsg(d.resposta || d.erro || 'Não entendi.');
+      } catch (e) {
+        setAiMsg('Falha ao processar o comando.');
+      } finally {
+        setProcessing(false);
+      }
+    }
   };
 
   const tempColor = data.temp > 100 ? '#ff4444' : data.temp > 90 ? '#ffaa00' : '#00ff88';
@@ -123,6 +202,7 @@ export default function App() {
           {cameraMode ? '⛯ Modo clássico' : '📷 Modo câmera'}
         </button>
         <div className="engine-on">● MOTOR ON</div>
+        <RestartButton />
       </header>
 
       {cameraMode ? (
@@ -167,14 +247,15 @@ export default function App() {
           <button className={`ctrl-btn ${data.headlights ? 'active' : ''}`} onClick={toggleLight}>
             💡 {data.headlights ? 'Farol ON' : 'Farol OFF'}
           </button>
+          <MicControl />
         </div>
       </div>
 
       <div className="ai-bar">
         <span className="ai-icon">🤖</span>
         <span className="ai-text">{aiMsg}</span>
-        <button className={`voice-btn ${listening ? 'listening' : ''}`} onClick={handleVoice}>
-          🎙 {listening ? 'Ouvindo...' : 'Corsa, falar'}
+        <button className={`voice-btn ${listening ? 'listening' : ''}`} onClick={handleVoice} disabled={processing}>
+          🎙 {listening ? 'Toque p/ parar' : processing ? 'Processando...' : 'Corsa, falar'}
         </button>
       </div>
 

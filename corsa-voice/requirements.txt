@@ -1,0 +1,7 @@
+flask
+groq
+psycopg2-binary
+requests
+google-api-python-client
+google-auth
+google-auth-oauthlib
