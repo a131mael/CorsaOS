@@ -45,6 +45,19 @@ body {
 }
 .view-toggle:hover { background: rgba(0,170,255,0.16); }
 
+.restart-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.18);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.restart-btn:hover, .restart-btn:active { color: #ff6666; }
+.restart-btn:disabled { color: rgba(255,255,255,0.35); cursor: default; }
+
 .gauges-row {
   display: flex;
   justify-content: space-around;
